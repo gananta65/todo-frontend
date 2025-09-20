@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+:root {
+  /* Light mode */
+  --color-bg: #f0f0f080; /* soft cream */
+  --color-card: #ffffff;
+  --color-primary: #2e86ab; /* soft blue */
+  --color-primary-hover: #256d91;
+  --color-text: #1a1a1a; /* high contrast teks */
+  --color-muted: #4f4f4f; /* agak gelap tapi lembut */
+  --color-todo-primary: #2e86ab;
+  --color-todo-secondary: #f6c90e;
+  --color-todo-accent: #a23b72;
+  --color-todo-success: #4caf50;
+  --color-todo-danger: #e63946;
+  --color-todo-muted: #9ca3af;
+}
+
+[data-theme="dark"] {
+  --color-bg: #2c2c2c; /* dark mode nyaman mata */
+  --color-card: #3a3a3a;
+  --color-primary: #4fa3d0; /* soft blue untuk dark */
+  --color-primary-hover: #3d8cb5;
+  --color-text: #e5e5e5; /* high contrast teks */
+  --color-muted: #b0b0b0;
+  --color-todo-primary: #4fa3d0;
+  --color-todo-secondary: #f6c90e;
+  --color-todo-accent: #a23b72;
+  --color-todo-success: #66d97f;
+  --color-todo-danger: #ff6b6b;
+  --color-todo-muted: #9ca3af;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-todo-primary: var(--todo-primary);
+  --color-todo-secondary: var(--todo-secondary);
+  --color-todo-accent: var(--todo-accent);
+  --color-todo-success: var(--todo-success);
+  --color-todo-danger: var(--todo-danger);
+  --color-todo-muted: var(--todo-muted);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Background helpers */
+.bg-todo-primary {
+  background-color: var(--color-todo-primary);
+}
+.bg-todo-secondary {
+  background-color: var(--color-todo-secondary);
+}
+.bg-todo-accent {
+  background-color: var(--color-todo-accent);
+}
+.bg-todo-success {
+  background-color: var(--color-todo-success);
+}
+.bg-todo-danger {
+  background-color: var(--color-todo-danger);
+}
+.bg-todo-muted {
+  background-color: var(--color-todo-muted);
+}
+
+.bg-page {
+  background-color: var(--color-bg);
+}
+.bg-card {
+  background-color: var(--color-card);
+}
+.text-primary {
+  color: var(--color-primary);
+}
+.text-main {
+  color: var(--color-text);
+}
+.text-muted {
+  color: var(--color-muted);
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: var(--color-card);
+}
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+.loader {
+  border-width: 4px;
+  border-top-color: var(--color-primary);
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  border-radius: 50%;
+}
+
+.border-t {
+  border-top: 1px solid var(--color-text);
+}
