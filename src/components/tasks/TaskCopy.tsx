@@ -43,7 +43,7 @@ export default function CopyButton({ tasks, allSellers }: CopyButtonProps) {
     const lines: string[] = [];
 
     sortedSellers.forEach((seller) => {
-      lines.push(`Seller: ${seller}`);
+      lines.push(`*${seller}*`);
       sellerMap[seller].forEach((task, i) => {
         const subtotal = task.quantity * task.price;
         lines.push(
