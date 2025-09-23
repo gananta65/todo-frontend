@@ -117,7 +117,6 @@ export default function TaskList({
                 {allCompleted ? "Uncomplete All" : "Complete All"}
               </button>
             </div>
-
             {/* Desktop Table */}
             <div className="hidden md:block overflow-x-auto">
               <table className="min-w-full border bg-card text-main text-sm">
@@ -213,7 +212,6 @@ export default function TaskList({
                 </tbody>
               </table>
             </div>
-
             {/* Mobile Card */}
             <div className="md:hidden space-y-3">
               {sellerTasks.map((task) => (
@@ -274,8 +272,8 @@ export default function TaskList({
         );
       })}
 
-      <div className="text-right font-bold text-lg text-main border-t pt-4">
-        Grand Total: {formatRupiah(grandTotal)}
+      <div className="text-right font-bold text-lg text-main border-t pt-4 mb-40">
+        Total Belanja: {formatRupiah(grandTotal)}
       </div>
 
       {/* Modal edit (same UX as AddTaskForm) */}

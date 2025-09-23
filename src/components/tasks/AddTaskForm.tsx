@@ -141,7 +141,7 @@ export default function AddTaskForm({
 
       {showModal && (
         <div className="fixed text-main inset-0 flex items-center justify-center bg-black/50 z-50">
-          <div className="bg-card rounded-lg shadow-lg w-full max-w-md p-6 relative">
+          <div className="bg-card rounded-lg shadow-lg w-auto max-w-md p-4 sm:p-6 mx-2 sm:mx-5 relative">
             <h2 className="text-lg font-semibold mb-4">Tambah Task</h2>
             <form onSubmit={handleSubmit} className="space-y-3">
               {/* Item Combobox */}
@@ -181,7 +181,7 @@ export default function AddTaskForm({
                           value={item}
                           className={({ active }) =>
                             `px-3 py-1 cursor-pointer ${
-                              active ? "bg-gray-100" : ""
+                              active ? "bg-todo-muted" : ""
                             }`
                           }
                         >

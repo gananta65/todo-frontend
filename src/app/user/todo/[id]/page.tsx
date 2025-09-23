@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/components/AuthContext";
 import TaskList from "@/components/tasks/TaskList";
 import AddTaskForm from "@/components/tasks/AddTaskForm";
+import CopyButton from "@/components/tasks/TaskCopy";
 import { useTasks } from "@/hooks/useTasks";
 import { useSellers } from "@/hooks/useSellers";
 import { fetchUserItems } from "@/lib/api/item";
@@ -108,26 +109,40 @@ export default function TodoDetailPage() {
 
   return (
     <div className="p-4 max-w-3xl mx-auto">
-      <button
-        onClick={() => router.back()}
-        className="mb-4 text-todo-primary hover:underline"
-      >
-        ← Kembali
-      </button>
+      <div className="min-h-[150px] mb-6">
+        <button
+          onClick={() => router.back()}
+          className="mb-4 text-main hover:underline"
+        >
+          ← Kembali
+        </button>
 
-      <h1 className="text-2xl font-bold text-main mb-1">
-        TodoList : {todoList?.name || "Memuat..."}
-      </h1>
-      <p className="text-sm text-muted mb-5">
-        {todoList?.created_at
-          ? new Date(todoList.created_at).toLocaleDateString("id-ID", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })
-          : "Tanggal tidak tersedia"}
-      </p>
+        <h1 className="text-2xl font-bold text-main mb-1">
+          TodoList : {todoList?.name || "Memuat..."}
+        </h1>
+        <p className="text-sm text-muted mb-5">
+          {todoList?.created_at
+            ? new Date(todoList.created_at).toLocaleDateString("id-ID", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })
+            : "Tanggal tidak tersedia"}
+        </p>
+      </div>
+      <div>
+        <div className="flex justify-end mb-4">
+          <CopyButton tasks={tasks} allSellers={allSellers} />
+        </div>
 
+        <TaskList
+          tasks={tasks}
+          items={items}
+          allSellers={allSellers}
+          onTaskUpdated={handleTaskUpdated}
+          onTaskDeleted={handleTaskDeleted}
+        />
+      </div>
       <AddTaskForm
         todoListId={Number(id)}
         token={token}
@@ -136,14 +151,6 @@ export default function TodoDetailPage() {
         sellers={allSellers ?? []}
         getLatestSellerForItem={getLatestSellerForItem}
         onTaskAdded={handleTaskAdded}
-      />
-
-      <TaskList
-        tasks={tasks}
-        items={items}
-        allSellers={allSellers}
-        onTaskUpdated={handleTaskUpdated}
-        onTaskDeleted={handleTaskDeleted}
       />
     </div>
   );

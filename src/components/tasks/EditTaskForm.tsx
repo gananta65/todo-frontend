@@ -201,8 +201,8 @@ export default function EditTaskForm({
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
-      <div className="bg-card rounded-lg shadow-lg w-full max-w-md p-6 relative">
+    <div className="fixed text-main inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="bg-card rounded-lg shadow-lg w-auto max-w-md p-4 sm:p-6 mx-2 sm:mx-5 relative">
         <h2 className="text-lg font-semibold mb-4">Edit Task</h2>
         <form onSubmit={handleSubmit} className="space-y-3">
           {/* Item Combobox */}
@@ -347,14 +347,14 @@ export default function EditTaskForm({
           <div className="flex justify-end space-x-2 pt-2">
             <button
               type="button"
-              className="px-4 py-2 bg-gray-300 rounded"
+              className="px-4 py-2 bg-todo-muted rounded text-main"
               onClick={resetForm}
             >
               Batal
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-todo-primary text-white rounded"
+              className="px-4 py-2 bg-todo-primary text-main rounded"
               disabled={isSubmitting}
             >
               {isSubmitting ? "Menyimpan..." : "Simpan"}

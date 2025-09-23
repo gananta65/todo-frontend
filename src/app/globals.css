@@ -2,33 +2,35 @@
 
 :root {
   /* Light mode */
-  --color-bg: #f0f0f080; /* soft cream */
-  --color-card: #ffffff;
-  --color-primary: #2e86ab; /* soft blue */
-  --color-primary-hover: #256d91;
-  --color-text: #1a1a1a; /* high contrast teks */
-  --color-muted: #4f4f4f; /* agak gelap tapi lembut */
-  --color-todo-primary: #2e86ab;
-  --color-todo-secondary: #f6c90e;
-  --color-todo-accent: #a23b72;
-  --color-todo-success: #4caf50;
-  --color-todo-danger: #e63946;
-  --color-todo-muted: #9ca3af;
+  --color-bg: #f8f8f8; /* very soft neutral */
+  --color-card: #ffffff; /* clean white card */
+  --color-primary: #1f6f8b; /* professional soft blue */
+  --color-primary-hover: #145374; /* slightly darker */
+  --color-text: #1c1c1c; /* high contrast teks */
+  --color-muted: #6b6b6b; /* soft gray */
+
+  --color-todo-primary: #1f6f8b; /* same as primary */
+  --color-todo-secondary: #e09f3e; /* warm gold */
+  --color-todo-accent: #9b5de5; /* muted purple for accent */
+  --color-todo-success: #4caf50; /* green success */
+  --color-todo-danger: #d90429; /* dark red danger */
+  --color-todo-muted: #9ca3af; /* soft gray */
 }
 
 [data-theme="dark"] {
-  --color-bg: #2c2c2c; /* dark mode nyaman mata */
-  --color-card: #3a3a3a;
-  --color-primary: #4fa3d0; /* soft blue untuk dark */
-  --color-primary-hover: #3d8cb5;
-  --color-text: #e5e5e5; /* high contrast teks */
-  --color-muted: #b0b0b0;
-  --color-todo-primary: #4fa3d0;
-  --color-todo-secondary: #f6c90e;
-  --color-todo-accent: #a23b72;
-  --color-todo-success: #66d97f;
-  --color-todo-danger: #ff6b6b;
-  --color-todo-muted: #9ca3af;
+  --color-bg: #1e1e1e; /* dark neutral */
+  --color-card: #2c2c2c; /* card slightly lighter */
+  --color-primary: #4fa3d0; /* soft blue */
+  --color-primary-hover: #3b8bb5; /* darker hover */
+  --color-text: #e5e5e5; /* readable text */
+  --color-muted: #a0a0a0; /* muted gray */
+
+  --color-todo-primary: #4fa3d0; /* soft blue */
+  --color-todo-secondary: #e09f3e; /* warm gold */
+  --color-todo-accent: #9b5de5; /* muted purple */
+  --color-todo-success: #66d97f; /* green success */
+  --color-todo-danger: #ff4f58; /* professional red */
+  --color-todo-muted: #9ca3af; /* soft gray */
 }
 
 @theme inline {
