@@ -12,28 +12,31 @@ interface CopyButtonProps {
 export default function CopyButton({ tasks, allSellers }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
-  // Gunakan logika sama seperti TaskList untuk menentukan seller
+  // Format angka ke ribuan Indonesia tanpa desimal
+  const formatNumber = (value: number) =>
+    Math.round(value).toLocaleString("id-ID", { minimumFractionDigits: 0 });
+
+  // Dapatkan nama seller dari snapshot_sellers
   const getSellerName = (task: Task) => {
     if (task.snapshot_sellers?.length && allSellers?.length) {
       const latestId = task.snapshot_sellers[task.snapshot_sellers.length - 1];
-      const matchedSeller = allSellers.find((s) => s.id == latestId);
+      const matchedSeller = allSellers.find((s) => s.id === latestId);
       return matchedSeller?.name ?? `ID:${latestId}`;
     }
     return "Belum ditentukan";
   };
 
-  // Format task per seller untuk clipboard
   const formatTasksForClipboard = (tasks: Task[]) => {
     if (!tasks || tasks.length === 0) return "";
 
     const sellerMap: Record<string, Task[]> = {};
-
     tasks.forEach((task) => {
       const sellerName = getSellerName(task);
       if (!sellerMap[sellerName]) sellerMap[sellerName] = [];
       sellerMap[sellerName].push(task);
     });
 
+    // Sort seller, "Belum ditentukan" selalu di bawah
     const sortedSellers = Object.keys(sellerMap).sort((a, b) => {
       if (a === "Belum ditentukan") return 1;
       if (b === "Belum ditentukan") return -1;
@@ -43,29 +46,25 @@ export default function CopyButton({ tasks, allSellers }: CopyButtonProps) {
     const lines: string[] = [];
 
     sortedSellers.forEach((seller) => {
-      lines.push(`*${seller}*`);
+      lines.push(`*${seller}*`); // bold seller
       sellerMap[seller].forEach((task, i) => {
         const subtotal = task.quantity * task.price;
         lines.push(
           `${i + 1}. ${task.item.name} | ${task.quantity} ${
             task.unit
-          } | ${task.price.toLocaleString(
-            "id-ID"
-          )} | subtotal: ${subtotal.toLocaleString("id-ID")}`
+          } | ${formatNumber(task.price)} | subtotal: ${formatNumber(subtotal)}`
         );
       });
       const sellerSubtotal = sellerMap[seller].reduce(
         (sum, t) => sum + t.quantity * t.price,
         0
       );
-      lines.push(
-        `Subtotal ${seller}: ${sellerSubtotal.toLocaleString("id-ID")}`
-      );
+      lines.push(`Subtotal ${seller}: ${formatNumber(sellerSubtotal)}`);
       lines.push(""); // spasi antar seller
     });
 
     const grandTotal = tasks.reduce((sum, t) => sum + t.quantity * t.price, 0);
-    lines.push(`Grand Total: ${grandTotal.toLocaleString("id-ID")}`);
+    lines.push(`Grand Total: ${formatNumber(grandTotal)}`);
 
     return lines.join("\n");
   };
