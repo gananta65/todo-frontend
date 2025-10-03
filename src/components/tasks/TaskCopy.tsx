@@ -4,17 +4,27 @@ import React, { useState } from "react";
 import { Task, Seller } from "@/lib/interfaces";
 import { Copy } from "lucide-react";
 
+type CopyFormat = "full" | "sellerOnly" | "itemAndPrice";
+
 interface CopyButtonProps {
   tasks: Task[];
   allSellers: Seller[];
+  created_at?: string;
 }
 
-export default function CopyButton({ tasks, allSellers }: CopyButtonProps) {
+export default function CopyButton({
+  tasks,
+  allSellers,
+  created_at,
+}: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
+  const [format, setFormat] = useState<CopyFormat>("full");
 
-  // Format angka ke ribuan Indonesia tanpa desimal
-  const formatNumber = (value: number) =>
-    Math.round(value).toLocaleString("id-ID", { minimumFractionDigits: 0 });
+  // Konversi harga ke satuan (1000 -> 1, 4500 -> 4.5)
+  const formatInThousands = (value: number) => {
+    const num = value / 1000;
+    return Number.isInteger(num) ? num.toString() : num.toFixed(1);
+  };
 
   // Dapatkan nama seller dari snapshot_sellers
   const getSellerName = (task: Task) => {
@@ -26,7 +36,7 @@ export default function CopyButton({ tasks, allSellers }: CopyButtonProps) {
     return "Belum ditentukan";
   };
 
-  const formatTasksForClipboard = (tasks: Task[]) => {
+  const formatTasksForClipboard = (tasks: Task[], type: CopyFormat): string => {
     if (!tasks || tasks.length === 0) return "";
 
     const sellerMap: Record<string, Task[]> = {};
@@ -36,41 +46,75 @@ export default function CopyButton({ tasks, allSellers }: CopyButtonProps) {
       sellerMap[sellerName].push(task);
     });
 
-    // Sort seller, "Belum ditentukan" selalu di bawah
-    const sortedSellers = Object.keys(sellerMap).sort((a, b) => {
-      if (a === "Belum ditentukan") return 1;
-      if (b === "Belum ditentukan") return -1;
-      return a.localeCompare(b, "id");
-    });
+    // Flat array semua item untuk itemAndPrice
+    const allItems: Task[] =
+      type === "itemAndPrice"
+        ? [...tasks].sort((a, b) =>
+            a.item.name.localeCompare(b.item.name, "id", {
+              sensitivity: "base",
+            })
+          )
+        : [];
 
     const lines: string[] = [];
 
-    sortedSellers.forEach((seller) => {
-      lines.push(`*${seller}*`); // bold seller
-      sellerMap[seller].forEach((task, i) => {
-        const subtotal = task.quantity * task.price;
-        lines.push(
-          `${i + 1}. ${task.item.name} | ${task.quantity} ${
-            task.unit
-          } | ${formatNumber(task.price)} | subtotal: ${formatNumber(subtotal)}`
-        );
+    // Tanggal
+    if (created_at) {
+      const formattedDate = new Date(created_at).toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
       });
-      const sellerSubtotal = sellerMap[seller].reduce(
+      lines.push(formattedDate, "");
+    }
+
+    if (type === "itemAndPrice") {
+      allItems.forEach((task) => {
+        lines.push(`${task.item.name} ${formatInThousands(task.price)}`);
+      });
+      return lines.join("\n");
+    }
+
+    // full & sellerOnly
+    const sortedSellers = Object.keys(sellerMap);
+    sortedSellers.forEach((seller) => {
+      if (type === "sellerOnly") {
+        lines.push(`${seller}`);
+      }
+
+      if (type === "full") {
+        lines.push(`*${seller}*`);
+        sellerMap[seller].forEach((task) => {
+          const subtotal = task.quantity * task.price;
+          lines.push(
+            `${task.item.name} ${task.quantity} ${
+              task.unit
+            } ${formatInThousands(task.price)} subtotal: ${formatInThousands(
+              subtotal
+            )}`
+          );
+        });
+        const sellerSubtotal = sellerMap[seller].reduce(
+          (sum, t) => sum + t.quantity * t.price,
+          0
+        );
+        lines.push(`Subtotal ${seller}: ${formatInThousands(sellerSubtotal)}`);
+      }
+    });
+
+    if (type === "full") {
+      const grandTotal = tasks.reduce(
         (sum, t) => sum + t.quantity * t.price,
         0
       );
-      lines.push(`Subtotal ${seller}: ${formatNumber(sellerSubtotal)}`);
-      lines.push(""); // spasi antar seller
-    });
-
-    const grandTotal = tasks.reduce((sum, t) => sum + t.quantity * t.price, 0);
-    lines.push(`Grand Total: ${formatNumber(grandTotal)}`);
+      lines.push(`Grand Total: ${formatInThousands(grandTotal)}`);
+    }
 
     return lines.join("\n");
   };
 
   const handleCopy = async () => {
-    const textToCopy = formatTasksForClipboard(tasks);
+    const textToCopy = formatTasksForClipboard(tasks, format);
     try {
       await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
@@ -81,12 +125,22 @@ export default function CopyButton({ tasks, allSellers }: CopyButtonProps) {
   };
 
   return (
-    <button
-      onClick={handleCopy}
-      className="flex items-center gap-2 px-4 py-2 rounded-lg shadow text-main bg-primary hover:bg-primary-hover transition font-medium text-sm sm:text-base"
-    >
-      <Copy className="w-4 h-4" />
-      {copied ? "Tersalin!" : "Salin Daftar Belanja Ini"}
-    </button>
+    <div className="flex items-center gap-2">
+      <select
+        value={format}
+        onChange={(e) => setFormat(e.target.value as CopyFormat)}
+        className="px-2 py-1 border rounded-lg text-sm"
+      >
+        <option value="sellerOnly">Salin Nama Dagang</option>
+        <option value="itemAndPrice">Salin Barang + Harga Satuan</option>
+      </select>
+      <button
+        onClick={handleCopy}
+        className="flex items-center gap-2 px-4 py-2 rounded-lg shadow text-main bg-primary hover:bg-primary-hover transition font-medium text-sm sm:text-base"
+      >
+        <Copy className="w-4 h-4" />
+        {copied ? "Tersalin!" : "Salin"}
+      </button>
+    </div>
   );
 }

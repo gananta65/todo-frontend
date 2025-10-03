@@ -132,7 +132,11 @@ export default function TodoDetailPage() {
       </div>
       <div>
         <div className="flex justify-end mb-4">
-          <CopyButton tasks={tasks} allSellers={allSellers} />
+          <CopyButton
+            tasks={tasks}
+            allSellers={allSellers}
+            created_at={todoList?.created_at}
+          />
         </div>
 
         <TaskList
