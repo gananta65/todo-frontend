@@ -129,7 +129,7 @@ export default function CopyButton({
       <select
         value={format}
         onChange={(e) => setFormat(e.target.value as CopyFormat)}
-        className="px-2 py-1 border rounded-lg text-sm"
+        className="px-2 py-1 border rounded-lg text-sm text-main bg-card"
       >
         <option value="sellerOnly">Salin Nama Dagang</option>
         <option value="itemAndPrice">Salin Barang + Harga Satuan</option>

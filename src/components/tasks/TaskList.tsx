@@ -13,8 +13,8 @@ interface TaskListProps {
   onTaskUpdated?: (
     taskId: number,
     updates: Partial<Task>
-  ) => Promise<void> | void; // optional
-  onTaskDeleted?: (taskId: number) => Promise<void> | void; // <== ini baru
+  ) => Promise<void> | void;
+  onTaskDeleted?: (taskId: number) => Promise<void> | void;
 }
 
 export default function TaskList({
@@ -30,7 +30,6 @@ export default function TaskList({
 
   if (!tasksState || tasksState.length === 0) return <p>No tasks yet.</p>;
 
-  // Toggle complete front-end only (no API call)
   const toggleTask = (taskId: number, completed: boolean) => {
     setTasksState((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, completed } : t))
@@ -49,12 +48,6 @@ export default function TaskList({
 
   const cancelEdit = () => setEditingTask(null);
 
-  const toggleSellerTasks = (seller: string, completed: boolean) => {
-    setTasksState((prev) =>
-      prev.map((t) => (getSellerName(t) === seller ? { ...t, completed } : t))
-    );
-  };
-
   const getSellerName = (task: Task) => {
     if (task.snapshot_sellers?.length && allSellers?.length) {
       const latestId = task.snapshot_sellers[task.snapshot_sellers.length - 1];
@@ -62,6 +55,29 @@ export default function TaskList({
       return matchedSeller?.name ?? `ID:${latestId}`;
     }
     return "Belum ditentukan";
+  };
+
+  const toggleSellerTasks = (seller: string, completed: boolean) => {
+    setTasksState((prev) =>
+      prev.map((t) => (getSellerName(t) === seller ? { ...t, completed } : t))
+    );
+  };
+
+  const parseNumber = (value: string | number) => {
+    if (typeof value === "number") return value;
+    return Number(value.toString().replace(/[^0-9.]/g, "")) || 0;
+  };
+
+  const isTaskIncomplete = (task: Task) => {
+    const priceNum = parseNumber(task.price);
+    const quantityNum = parseNumber(task.quantity);
+
+    return (
+      priceNum === 0 ||
+      quantityNum === 0 ||
+      !task.unit ||
+      getSellerName(task) === "Belum ditentukan"
+    );
   };
 
   const groupedTasks = tasksState.reduce(
@@ -117,6 +133,7 @@ export default function TaskList({
                 {allCompleted ? "Uncomplete All" : "Complete All"}
               </button>
             </div>
+
             {/* Desktop Table */}
             <div className="hidden md:block overflow-x-auto">
               <table className="min-w-full border bg-card text-main text-sm">
@@ -136,10 +153,10 @@ export default function TaskList({
                       key={task.id}
                       className={`border-t transition ${
                         task.completed ? "text-muted line-through" : "text-main"
-                      }`}
+                      } ${isTaskIncomplete(task) ? "bg-todo-danger" : ""}`}
                     >
                       <>
-                        {/* kolom delete */}
+                        {/* Delete */}
                         <td className="px-2 py-2 text-center">
                           <button
                             type="button"
@@ -154,11 +171,13 @@ export default function TaskList({
                             <Trash2 className="w-5 h-5" />
                           </button>
                         </td>
+
+                        {/* Complete */}
                         <td className="px-2 py-2 text-center">
                           <button
                             type="button"
                             onClick={(e) => {
-                              e.stopPropagation(); // prevent opening modal
+                              e.stopPropagation();
                               toggleTask(task.id, !task.completed);
                             }}
                             className={`px-2 py-1 rounded text-xs text-white transition ${
@@ -171,6 +190,7 @@ export default function TaskList({
                           </button>
                         </td>
 
+                        {/* Item */}
                         <td
                           className="px-4 py-2 font-medium cursor-pointer"
                           onClick={() => startEdit(task)}
@@ -178,13 +198,15 @@ export default function TaskList({
                           {task.item?.name || "Belum ditentukan"}
                         </td>
 
+                        {/* Quantity */}
                         <td
                           className="px-4 py-2 text-right cursor-pointer"
                           onClick={() => startEdit(task)}
                         >
-                          {task.quantity} {task.unit}
+                          {task.quantity} {task.unit || "-"}
                         </td>
 
+                        {/* Price */}
                         <td
                           className="px-4 py-2 text-right cursor-pointer"
                           onClick={() => startEdit(task)}
@@ -192,6 +214,7 @@ export default function TaskList({
                           {formatRupiah(task.price)}
                         </td>
 
+                        {/* Subtotal */}
                         <td
                           className="px-4 py-2 text-right cursor-pointer"
                           onClick={() => startEdit(task)}
@@ -212,6 +235,7 @@ export default function TaskList({
                 </tbody>
               </table>
             </div>
+
             {/* Mobile Card */}
             <div className="md:hidden space-y-3">
               {sellerTasks.map((task) => (
@@ -220,16 +244,14 @@ export default function TaskList({
                   onClick={() => startEdit(task)}
                   className={`p-3 rounded border transition cursor-pointer relative ${
                     task.completed ? "text-muted line-through" : "text-main"
-                  }`}
+                  } ${isTaskIncomplete(task) ? "bg-todo-danger" : ""}`}
                 >
-                  {/* Baris atas: nama + tombol complete + delete */}
                   <div className="flex justify-between items-center">
                     <span className="font-medium">
                       {task.item?.name || "Belum ditentukan"}
                     </span>
 
                     <div className="flex items-center gap-2">
-                      {/* Tombol complete/undo */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -242,7 +264,6 @@ export default function TaskList({
                         {task.completed ? "Undo" : "Complete"}
                       </button>
 
-                      {/* Tombol delete */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -256,9 +277,10 @@ export default function TaskList({
                       </button>
                     </div>
                   </div>
-                  {/* Detail task */}
+
                   <div className="text-xs text-muted mt-1">
-                    {task.quantity} {task.unit} • {formatRupiah(task.price)} •{" "}
+                    {task.quantity} {task.unit || "-"} •{" "}
+                    {formatRupiah(task.price)} •{" "}
                     {formatRupiah(task.price * task.quantity)}
                   </div>
                 </div>
@@ -276,7 +298,6 @@ export default function TaskList({
         Total Belanja: {formatRupiah(grandTotal)}
       </div>
 
-      {/* Modal edit (same UX as AddTaskForm) */}
       {editingTask && (
         <EditTaskForm
           task={editingTask}
