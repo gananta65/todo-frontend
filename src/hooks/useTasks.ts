@@ -131,5 +131,43 @@ export function useTasks(todoId: number, token: string | null) {
     [todoId, token]
   );
 
-  return { tasks, loading, error, loadTasks, addTask, editTask, removeTask };
+  // Satu task
+  const completeTask = useCallback(
+    (taskId: number) => editTask(taskId, { completed: true }),
+    [editTask]
+  );
+
+  const undoTask = useCallback(
+    (taskId: number) => editTask(taskId, { completed: false }),
+    [editTask]
+  );
+
+  // Semua task
+  const completeAllTasks = useCallback(async () => {
+    for (const t of tasks.filter((t) => !t.completed)) {
+      await editTask(t.id, { completed: true });
+      await new Promise((r) => setTimeout(r, 200)); // cooldown
+    }
+  }, [tasks, editTask]);
+
+  const undoAllTasks = useCallback(async () => {
+    for (const t of tasks.filter((t) => t.completed)) {
+      await editTask(t.id, { completed: false });
+      await new Promise((r) => setTimeout(r, 200)); // cooldown
+    }
+  }, [tasks, editTask]);
+
+  return {
+    tasks,
+    loading,
+    error,
+    loadTasks,
+    addTask,
+    editTask,
+    removeTask,
+    completeTask,
+    undoTask,
+    completeAllTasks,
+    undoAllTasks,
+  };
 }

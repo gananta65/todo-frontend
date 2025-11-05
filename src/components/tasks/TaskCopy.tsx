@@ -18,7 +18,7 @@ export default function CopyButton({
   created_at,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
-  const [format, setFormat] = useState<CopyFormat>("full");
+  const [format, setFormat] = useState<CopyFormat>("sellerOnly");
 
   // Konversi harga ke satuan (1000 -> 1, 4500 -> 4.5)
   const formatInThousands = (value: number) => {
@@ -77,8 +77,10 @@ export default function CopyButton({
 
     // full & sellerOnly
     const sortedSellers = Object.keys(sellerMap);
+    const excludedSellers = ["Belum ditentukan", "Mobil"];
     sortedSellers.forEach((seller) => {
       if (type === "sellerOnly") {
+        if (excludedSellers.includes(seller)) return;
         lines.push(`${seller}`);
       }
 

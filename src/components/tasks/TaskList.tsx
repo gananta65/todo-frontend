@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Task, Seller, Item } from "@/lib/interfaces";
 import EditTaskForm from "./EditTaskForm";
-import { Trash2 } from "lucide-react";
+import { Trash2, Search } from "lucide-react";
 
 interface TaskListProps {
   tasks: Task[];
@@ -27,6 +27,7 @@ export default function TaskList({
 }: TaskListProps) {
   const [tasksState, setTasksState] = useState<Task[]>(tasks);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
   if (!tasksState || tasksState.length === 0) return <p>No tasks yet.</p>;
 
@@ -71,7 +72,6 @@ export default function TaskList({
   const isTaskIncomplete = (task: Task) => {
     const priceNum = parseNumber(task.price);
     const quantityNum = parseNumber(task.quantity);
-
     return (
       priceNum === 0 ||
       quantityNum === 0 ||
@@ -80,22 +80,49 @@ export default function TaskList({
     );
   };
 
-  const groupedTasks = tasksState.reduce(
-    (acc: Record<string, Task[]>, task) => {
-      const sellerName = getSellerName(task);
-      if (!acc[sellerName]) acc[sellerName] = [];
-      acc[sellerName].push(task);
-      return acc;
-    },
-    {}
-  );
-
   const formatRupiah = (value: number) =>
     new Intl.NumberFormat("id-ID", {
       style: "currency",
       currency: "IDR",
       minimumFractionDigits: 0,
     }).format(value);
+
+  // 🔍 Group + Search filtering
+  const groupedTasks = useMemo(() => {
+    // Step 1: group semua dulu
+    const groups = tasksState.reduce((acc: Record<string, Task[]>, task) => {
+      const sellerName = getSellerName(task);
+      if (!acc[sellerName]) acc[sellerName] = [];
+      acc[sellerName].push(task);
+      return acc;
+    }, {});
+
+    // Step 2: jika ada searchTerm, filter dalam tiap grup
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      const filteredGroups: Record<string, Task[]> = {};
+
+      Object.entries(groups).forEach(([seller, sellerTasks]) => {
+        const matches = sellerTasks.filter((t) => {
+          const sellerName = getSellerName(t).toLowerCase();
+          const itemName = t.item?.name?.toLowerCase() ?? "";
+          const unit = t.unit?.toLowerCase() ?? "";
+          const price = t.price.toString();
+          return (
+            sellerName.includes(term) ||
+            itemName.includes(term) ||
+            unit.includes(term) ||
+            price.includes(term)
+          );
+        });
+        if (matches.length > 0) filteredGroups[seller] = matches;
+      });
+
+      return filteredGroups;
+    }
+
+    return groups;
+  }, [tasksState, searchTerm]);
 
   const grandTotal = Object.values(groupedTasks).reduce((sum, sellerTasks) => {
     const sellerSubtotal = sellerTasks.reduce(
@@ -113,186 +140,221 @@ export default function TaskList({
 
   return (
     <div className="task-list space-y-10">
-      {sortedSellerEntries.map(([seller, sellerTasks]) => {
-        const sellerSubtotal = sellerTasks.reduce(
-          (acc, task) => acc + task.price * task.quantity,
-          0
-        );
-        const allCompleted = sellerTasks.every((t) => t.completed);
+      {/* 🔎 Search Bar */}
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2">
+        <div className="relative w-full">
+          <Search className="absolute left-2 top-2.5 w-5 h-5 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Cari task, seller, item..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full border rounded pl-8 pr-3 py-2 text-sm focus:ring focus:border-blue-500"
+          />
 
-        return (
-          <div key={seller} className="seller-group">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xl font-bold text-main border-b pb-1">
-                {seller}
-              </h3>
-              <button
-                onClick={() => toggleSellerTasks(seller, !allCompleted)}
-                className="text-sm px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600"
-              >
-                {allCompleted ? "Uncomplete All" : "Complete All"}
-              </button>
-            </div>
+          {searchTerm.length > 0 && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="
+          absolute right-3 top-2.5 
+          text-gray-400 hover:text-gray-600 
+          transition
+        "
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
 
-            {/* Desktop Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="min-w-full border bg-card text-main text-sm">
-                <thead>
-                  <tr>
-                    <th className="px-2 py-2 text-center w-8"></th>
-                    <th className="px-2 py-2 text-center w-20">Action</th>
-                    <th className="px-4 py-2 text-left">Item</th>
-                    <th className="px-4 py-2 text-right">Quantity</th>
-                    <th className="px-4 py-2 text-right">Price</th>
-                    <th className="px-4 py-2 text-right">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sellerTasks.map((task) => (
-                    <tr
-                      key={task.id}
-                      className={`border-t transition ${
-                        task.completed ? "text-muted line-through" : "text-main"
-                      } ${isTaskIncomplete(task) ? "bg-todo-danger" : ""}`}
-                    >
-                      <>
-                        {/* Delete */}
-                        <td className="px-2 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm("Yakin ingin menghapus task ini?")) {
-                                onTaskDeleted?.(task.id);
-                              }
-                            }}
-                            className="text-red-500 hover:text-red-700 text-lg font-bold"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </td>
+      {sortedSellerEntries.length === 0 ? (
+        <p className="text-muted italic">Tidak ada hasil pencarian.</p>
+      ) : (
+        sortedSellerEntries.map(([seller, sellerTasks]) => {
+          const sellerSubtotal = sellerTasks.reduce(
+            (acc, task) => acc + task.price * task.quantity,
+            0
+          );
+          const allCompleted = sellerTasks.every((t) => t.completed);
 
-                        {/* Complete */}
-                        <td className="px-2 py-2 text-center">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleTask(task.id, !task.completed);
-                            }}
-                            className={`px-2 py-1 rounded text-xs text-white transition ${
-                              task.completed
-                                ? "bg-red-500 hover:bg-red-600"
-                                : "bg-green-500 hover:bg-green-600"
-                            }`}
-                          >
-                            {task.completed ? "Undo" : "Complete"}
-                          </button>
-                        </td>
-
-                        {/* Item */}
-                        <td
-                          className="px-4 py-2 font-medium cursor-pointer"
-                          onClick={() => startEdit(task)}
-                        >
-                          {task.item?.name || "Belum ditentukan"}
-                        </td>
-
-                        {/* Quantity */}
-                        <td
-                          className="px-4 py-2 text-right cursor-pointer"
-                          onClick={() => startEdit(task)}
-                        >
-                          {task.quantity} {task.unit || "-"}
-                        </td>
-
-                        {/* Price */}
-                        <td
-                          className="px-4 py-2 text-right cursor-pointer"
-                          onClick={() => startEdit(task)}
-                        >
-                          {formatRupiah(task.price)}
-                        </td>
-
-                        {/* Subtotal */}
-                        <td
-                          className="px-4 py-2 text-right cursor-pointer"
-                          onClick={() => startEdit(task)}
-                        >
-                          {formatRupiah(task.price * task.quantity)}
-                        </td>
-                      </>
-                    </tr>
-                  ))}
-                  <tr className="font-semibold">
-                    <td colSpan={5} className="px-4 py-2 text-right border-t">
-                      Subtotal {seller}
-                    </td>
-                    <td className="px-4 py-2 text-right border-t">
-                      {formatRupiah(sellerSubtotal)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Mobile Card */}
-            <div className="md:hidden space-y-3">
-              {sellerTasks.map((task) => (
-                <div
-                  key={task.id}
-                  onClick={() => startEdit(task)}
-                  className={`p-3 rounded border transition cursor-pointer relative ${
-                    task.completed ? "text-muted line-through" : "text-main"
-                  } ${isTaskIncomplete(task) ? "bg-todo-danger" : ""}`}
+          return (
+            <div key={seller} className="seller-group">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xl font-bold text-main border-b pb-1">
+                  {seller}
+                </h3>
+                <button
+                  onClick={() => toggleSellerTasks(seller, !allCompleted)}
+                  className="text-sm px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600"
                 >
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">
-                      {task.item?.name || "Belum ditentukan"}
-                    </span>
+                  {allCompleted ? "Uncomplete All" : "Complete All"}
+                </button>
+              </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleTask(task.id, !task.completed);
-                        }}
-                        className={`px-2 py-1 rounded text-xs text-white ${
-                          task.completed ? "bg-red-500" : "bg-green-500"
-                        }`}
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="min-w-full border bg-card text-main text-sm">
+                  <thead>
+                    <tr>
+                      <th className="px-2 py-2 text-center w-8"></th>
+                      <th className="px-2 py-2 text-center w-20">Action</th>
+                      <th className="px-4 py-2 text-left">Item</th>
+                      <th className="px-4 py-2 text-right">Quantity</th>
+                      <th className="px-4 py-2 text-right">Price</th>
+                      <th className="px-4 py-2 text-right">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sellerTasks.map((task) => (
+                      <tr
+                        key={task.id}
+                        className={`border-t transition ${
+                          task.completed
+                            ? "text-muted line-through"
+                            : "text-main"
+                        } ${isTaskIncomplete(task) ? "bg-todo-danger" : ""}`}
                       >
-                        {task.completed ? "Undo" : "Complete"}
-                      </button>
+                        <>
+                          {/* Delete */}
+                          <td className="px-2 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (
+                                  confirm("Yakin ingin menghapus task ini?")
+                                ) {
+                                  onTaskDeleted?.(task.id);
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700 text-lg font-bold"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </td>
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm("Yakin ingin menghapus task ini?")) {
-                            onTaskDeleted?.(task.id);
-                          }
-                        }}
-                        className="p-1 rounded hover:bg-red-50 text-red-600"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
+                          {/* Complete */}
+                          <td className="px-2 py-2 text-center">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleTask(task.id, !task.completed);
+                              }}
+                              className={`px-2 py-1 rounded text-xs text-white transition ${
+                                task.completed
+                                  ? "bg-red-500 hover:bg-red-600"
+                                  : "bg-green-500 hover:bg-green-600"
+                              }`}
+                            >
+                              {task.completed ? "Undo" : "Complete"}
+                            </button>
+                          </td>
+
+                          {/* Item */}
+                          <td
+                            className="px-4 py-2 font-medium cursor-pointer"
+                            onClick={() => startEdit(task)}
+                          >
+                            {task.item?.name || "Belum ditentukan"}
+                          </td>
+
+                          {/* Quantity */}
+                          <td
+                            className="px-4 py-2 text-right cursor-pointer"
+                            onClick={() => startEdit(task)}
+                          >
+                            {task.quantity} {task.unit || "-"}
+                          </td>
+
+                          {/* Price */}
+                          <td
+                            className="px-4 py-2 text-right cursor-pointer"
+                            onClick={() => startEdit(task)}
+                          >
+                            {formatRupiah(task.price)}
+                          </td>
+
+                          {/* Subtotal */}
+                          <td
+                            className="px-4 py-2 text-right cursor-pointer"
+                            onClick={() => startEdit(task)}
+                          >
+                            {formatRupiah(task.price * task.quantity)}
+                          </td>
+                        </>
+                      </tr>
+                    ))}
+                    <tr className="font-semibold">
+                      <td colSpan={5} className="px-4 py-2 text-right border-t">
+                        Subtotal {seller}
+                      </td>
+                      <td className="px-4 py-2 text-right border-t">
+                        {formatRupiah(sellerSubtotal)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card */}
+              <div className="md:hidden space-y-3">
+                {sellerTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    onClick={() => startEdit(task)}
+                    className={`p-3 rounded border transition cursor-pointer relative ${
+                      task.completed ? "text-muted line-through" : "text-main"
+                    } ${isTaskIncomplete(task) ? "bg-todo-danger" : ""}`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">
+                        {task.item?.name || "Belum ditentukan"}
+                      </span>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleTask(task.id, !task.completed);
+                          }}
+                          className={`px-2 py-1 rounded text-xs text-white ${
+                            task.completed ? "bg-red-500" : "bg-green-500"
+                          }`}
+                        >
+                          {task.completed ? "Undo" : "Complete"}
+                        </button>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm("Yakin ingin menghapus task ini?")) {
+                              onTaskDeleted?.(task.id);
+                            }
+                          }}
+                          className="p-1 rounded hover:bg-red-50 text-red-600"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-muted mt-1">
+                      {task.quantity} {task.unit || "-"} •{" "}
+                      {formatRupiah(task.price)} •{" "}
+                      {formatRupiah(task.price * task.quantity)}
                     </div>
                   </div>
+                ))}
 
-                  <div className="text-xs text-muted mt-1">
-                    {task.quantity} {task.unit || "-"} •{" "}
-                    {formatRupiah(task.price)} •{" "}
-                    {formatRupiah(task.price * task.quantity)}
-                  </div>
+                <div className="text-right font-semibold mt-2 text-main">
+                  Subtotal {seller}: {formatRupiah(sellerSubtotal)}
                 </div>
-              ))}
-
-              <div className="text-right font-semibold mt-2 text-main">
-                Subtotal {seller}: {formatRupiah(sellerSubtotal)}
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })
+      )}
 
       <div className="text-right font-bold text-lg text-main border-t pt-4 mb-40">
         Total Belanja: {formatRupiah(grandTotal)}
