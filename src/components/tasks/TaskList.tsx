@@ -29,8 +29,6 @@ export default function TaskList({
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  if (!tasksState || tasksState.length === 0) return <p>No tasks yet.</p>;
-
   const toggleTask = (taskId: number, completed: boolean) => {
     setTasksState((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, completed } : t))
@@ -124,6 +122,9 @@ export default function TaskList({
     return groups;
   }, [tasksState, searchTerm]);
 
+  // Early return aman
+  if (!tasksState || tasksState.length === 0) return <p>No tasks yet.</p>;
+
   const grandTotal = Object.values(groupedTasks).reduce((sum, sellerTasks) => {
     const sellerSubtotal = sellerTasks.reduce(
       (acc, task) => acc + task.price * task.quantity,
@@ -151,15 +152,10 @@ export default function TaskList({
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full border rounded pl-8 pr-3 py-2 text-sm focus:ring focus:border-blue-500"
           />
-
           {searchTerm.length > 0 && (
             <button
               onClick={() => setSearchTerm("")}
-              className="
-          absolute right-3 top-2.5 
-          text-gray-400 hover:text-gray-600 
-          transition
-        "
+              className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition"
             >
               ✕
             </button>
@@ -215,7 +211,6 @@ export default function TaskList({
                         } ${isTaskIncomplete(task) ? "bg-todo-danger" : ""}`}
                       >
                         <>
-                          {/* Delete */}
                           <td className="px-2 py-2 text-center">
                             <button
                               type="button"
@@ -233,7 +228,6 @@ export default function TaskList({
                             </button>
                           </td>
 
-                          {/* Complete */}
                           <td className="px-2 py-2 text-center">
                             <button
                               type="button"
@@ -251,7 +245,6 @@ export default function TaskList({
                             </button>
                           </td>
 
-                          {/* Item */}
                           <td
                             className="px-4 py-2 font-medium cursor-pointer"
                             onClick={() => startEdit(task)}
@@ -259,7 +252,6 @@ export default function TaskList({
                             {task.item?.name || "Belum ditentukan"}
                           </td>
 
-                          {/* Quantity */}
                           <td
                             className="px-4 py-2 text-right cursor-pointer"
                             onClick={() => startEdit(task)}
@@ -267,7 +259,6 @@ export default function TaskList({
                             {task.quantity} {task.unit || "-"}
                           </td>
 
-                          {/* Price */}
                           <td
                             className="px-4 py-2 text-right cursor-pointer"
                             onClick={() => startEdit(task)}
@@ -275,7 +266,6 @@ export default function TaskList({
                             {formatRupiah(task.price)}
                           </td>
 
-                          {/* Subtotal */}
                           <td
                             className="px-4 py-2 text-right cursor-pointer"
                             onClick={() => startEdit(task)}
@@ -311,7 +301,6 @@ export default function TaskList({
                       <span className="font-medium">
                         {task.item?.name || "Belum ditentukan"}
                       </span>
-
                       <div className="flex items-center gap-2">
                         <button
                           onClick={(e) => {
@@ -338,7 +327,6 @@ export default function TaskList({
                         </button>
                       </div>
                     </div>
-
                     <div className="text-xs text-muted mt-1">
                       {task.quantity} {task.unit || "-"} •{" "}
                       {formatRupiah(task.price)} •{" "}
