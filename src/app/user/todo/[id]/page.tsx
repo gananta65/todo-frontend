@@ -24,18 +24,10 @@ export default function TodoDetailPage() {
     created_at?: string;
   } | null>(null);
 
-  const {
-    tasks,
-    loading,
-    addTask,
-    loadTasks,
-    editTask,
-    removeTask,
-    completeTask,
-    undoTask,
-    completeAllTasks,
-    undoAllTasks,
-  } = useTasks(Number(id), token);
+  const { tasks, loading, addTask, loadTasks, editTask, removeTask } = useTasks(
+    Number(id),
+    token
+  );
   const {
     sellers: allSellers,
     loading: loadingSellers,
@@ -153,7 +145,6 @@ export default function TodoDetailPage() {
           allSellers={allSellers}
           onTaskUpdated={handleTaskUpdated}
           onTaskDeleted={handleTaskDeleted}
-          
         />
       </div>
       <AddTaskForm
