@@ -45,23 +45,27 @@ export default function TaskList({
   );
 
   // Toggle single task (optimistic + notify parent via onTaskUpdated)
+  // Ganti toggleTask
   const toggleTask = async (taskId: number, completed: boolean) => {
-    // optimistic update in UI
+    // Optimistic update UI
     setTasksState((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, completed } : t))
     );
 
-    // if editing the same task, update the editingTask copy too
     if (editingTask?.id === taskId) {
       setEditingTask((prev) => (prev ? { ...prev, completed } : null));
     }
 
-    // notify parent / hook
-    if (onTaskUpdated) {
+    // Gunakan onBulkComplete untuk 1 task saja
+    if (onBulkComplete) {
+      const task = tasksState.find((t) => t.id === taskId);
+      const seller = task ? getSellerName(task) : null;
       try {
-        await onTaskUpdated(taskId, { completed });
+        if (seller) {
+          await onBulkComplete(seller, completed);
+        }
       } catch (err) {
-        // revert optimistic update on failure (best-effort)
+        // Revert jika gagal
         setTasksState((prev) =>
           prev.map((t) =>
             t.id === taskId ? { ...t, completed: !completed } : t

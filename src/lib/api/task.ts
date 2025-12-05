@@ -97,7 +97,7 @@ export async function bulkUpdateTasks(
   const res = await fetch(
     `${API_URL}/todo-lists/${todoId}/tasks/bulk-complete`,
     {
-      method: "POST",
+      method: "PATCH",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
