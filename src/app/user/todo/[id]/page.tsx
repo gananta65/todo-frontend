@@ -9,8 +9,9 @@ import CopyButton from "@/components/tasks/TaskCopy";
 import { useTasks } from "@/hooks/useTasks";
 import { useSellers } from "@/hooks/useSellers";
 import { fetchUserItems } from "@/lib/api/item";
-import { Item, Task, UpdateTaskPayload } from "@/lib/interfaces";
+import { Item, Task } from "@/lib/interfaces";
 import { fetchTodo } from "@/lib/api/todolist";
+import { getSellerName } from "@/lib/helper/task";
 
 export default function TodoDetailPage() {
   const { id } = useParams();
@@ -18,16 +19,23 @@ export default function TodoDetailPage() {
   const router = useRouter();
 
   const [items, setItems] = useState<Item[]>([]);
-
   const [todoList, setTodoList] = useState<{
     name: string;
     created_at?: string;
   } | null>(null);
 
-  const { tasks, loading, addTask, loadTasks, editTask, removeTask } = useTasks(
-    Number(id),
-    token
-  );
+  const {
+    tasks,
+    loading,
+    addTask,
+    editTask,
+    removeTask,
+    completeTask,
+    undoTask,
+    bulkUpdate,
+    loadTasks,
+  } = useTasks(Number(id), token);
+
   const {
     sellers: allSellers,
     loading: loadingSellers,
@@ -45,7 +53,7 @@ export default function TodoDetailPage() {
     fetchUserItems(token).then(setItems).catch(console.error);
   }, [token]);
 
-  // Fetch detail todolist (nama)
+  // Fetch detail todolist
   useEffect(() => {
     if (!token || !id) return;
     fetchTodo(Number(id), token)
@@ -78,33 +86,20 @@ export default function TodoDetailPage() {
       sellers: task.sellers,
       snapshot_sellers,
     });
-
-    await loadTasks(); // reload tasks setelah add
   };
 
-  const handleTaskUpdated = async (taskId: number, updates: Partial<Task>) => {
+  const handleBulkCompletePerSeller = async (
+    sellerName: string,
+    completed: boolean
+  ) => {
     if (!allSellers) return;
+    const sellerTasks = tasks.filter(
+      (t) => getSellerName(t, allSellers) === sellerName
+    );
+    const ids = sellerTasks.map((t) => t.id);
+    if (ids.length === 0) return;
 
-    const payload: UpdateTaskPayload = {
-      name: updates.item?.name, // pakai item.name dari updates
-      price: updates.price,
-      unit: updates.unit,
-      quantity: updates.quantity,
-      sellers: updates.sellers,
-      completed: updates.completed,
-    };
-
-    await editTask(taskId, payload); // hook tinggal kirim payload ini
-    await loadTasks(); // reload dari server
-  };
-
-  const handleTaskDeleted = async (taskId: number) => {
-    try {
-      await removeTask(taskId);
-      await loadTasks(); // reload dari server
-    } catch (err) {
-      console.error("❌ Error deleteTask:", err);
-    }
+    await bulkUpdateTasks(ids, completed);
   };
 
   return (
@@ -130,27 +125,28 @@ export default function TodoDetailPage() {
             : "Tanggal tidak tersedia"}
         </p>
       </div>
-      <div>
-        <div className="flex justify-end mb-4">
-          <CopyButton
-            tasks={tasks}
-            allSellers={allSellers}
-            created_at={todoList?.created_at}
-          />
-        </div>
 
-        <TaskList
+      <div className="flex justify-end mb-4">
+        <CopyButton
           tasks={tasks}
-          items={items}
           allSellers={allSellers}
-          onTaskUpdated={handleTaskUpdated}
-          onTaskDeleted={handleTaskDeleted}
+          created_at={todoList?.created_at}
         />
       </div>
+
+      <TaskList
+        tasks={tasks}
+        items={items}
+        allSellers={allSellers}
+        onTaskUpdated={editTask}
+        onTaskDeleted={removeTask}
+        onBulkComplete={handleBulkCompletePerSeller} // per seller
+      />
+
       <AddTaskForm
         todoListId={Number(id)}
         token={token}
-        tasks={tasks} // pakai state lokal
+        tasks={tasks}
         items={items ?? []}
         sellers={allSellers ?? []}
         getLatestSellerForItem={getLatestSellerForItem}

@@ -88,6 +88,36 @@ export async function updateTask(
   return json.data as Task;
 }
 
+export async function bulkUpdateTasks(
+  todoId: number,
+  taskIds: number[],
+  completed: boolean,
+  token: string
+) {
+  const res = await fetch(
+    `${API_URL}/todo-lists/${todoId}/tasks/bulk-complete`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ ids: taskIds, completed }),
+    }
+  );
+
+  if (!res.ok) {
+    const err = await res
+      .json()
+      .catch(() => ({ message: "Gagal bulk update task" }));
+    throw new Error(err.message || "Gagal bulk update task");
+  }
+
+  const json = await res.json();
+  return json.tasks as Task[];
+}
+
 // lib/api/task.ts
 export async function deleteTask(
   todoId: number,

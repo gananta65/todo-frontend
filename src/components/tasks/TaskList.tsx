@@ -1,38 +1,65 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Task, Seller, Item } from "@/lib/interfaces";
 import EditTaskForm from "./EditTaskForm";
-import { Trash2, Search } from "lucide-react";
+import { Search } from "lucide-react";
+import { getSellerName as helperGetSellerName } from "@/lib/helper/task";
 
 interface TaskListProps {
   tasks: Task[];
   allSellers: Seller[];
   items: Item[];
-  getLatestSellerForItem?: (itemId: number) => Promise<Seller | null>;
   onTaskUpdated?: (
     taskId: number,
     updates: Partial<Task>
-  ) => Promise<void> | void;
-  onTaskDeleted?: (taskId: number) => Promise<void> | void;
+  ) => void | Promise<void>;
+  onTaskDeleted?: (taskId: number) => void | Promise<void>;
+  onBulkComplete?: (seller: string, completed: boolean) => void | Promise<void>;
 }
 
 export default function TaskList({
   tasks,
   allSellers,
   items,
-  getLatestSellerForItem,
   onTaskUpdated,
   onTaskDeleted,
+  onBulkComplete,
 }: TaskListProps) {
   const [tasksState, setTasksState] = useState<Task[]>(tasks);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const toggleTask = (taskId: number, completed: boolean) => {
+  // Sync tasksState saat props.tasks berubah
+  useEffect(() => {
+    setTasksState(tasks);
+  }, [tasks]);
+
+  const getSellerName = (task: Task) => helperGetSellerName(task, allSellers);
+
+  const toggleTask = async (taskId: number, completed: boolean) => {
+    // Optimistic update
     setTasksState((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, completed } : t))
     );
+
+    if (editingTask?.id === taskId) {
+      setEditingTask((prev) => (prev ? { ...prev, completed } : null));
+    }
+
+    if (onTaskUpdated) await onTaskUpdated(taskId, { completed });
+  };
+
+  const toggleSellerTasks = async (seller: string, completed: boolean) => {
+    setTasksState((prev) =>
+      prev.map((t) => (getSellerName(t) === seller ? { ...t, completed } : t))
+    );
+
+    if (editingTask && getSellerName(editingTask) === seller) {
+      setEditingTask((prev) => (prev ? { ...prev, completed } : null));
+    }
+
+    if (onBulkComplete) await onBulkComplete(seller, completed);
   };
 
   const startEdit = (task: Task) => setEditingTask(task);
@@ -41,97 +68,48 @@ export default function TaskList({
     setTasksState((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t))
     );
+
+    if (editingTask?.id === taskId) {
+      setEditingTask((prev) => (prev ? { ...prev, ...updates } : null));
+    }
+
     if (onTaskUpdated) await onTaskUpdated(taskId, updates);
     setEditingTask(null);
   };
 
   const cancelEdit = () => setEditingTask(null);
 
-  const getSellerName = (task: Task) => {
-    if (task.snapshot_sellers?.length && allSellers?.length) {
-      const latestId = task.snapshot_sellers[task.snapshot_sellers.length - 1];
-      const matchedSeller = allSellers.find((s) => s.id == latestId);
-      return matchedSeller?.name ?? `ID:${latestId}`;
-    }
-    return "Belum ditentukan";
-  };
-
-  const toggleSellerTasks = (seller: string, completed: boolean) => {
-    setTasksState((prev) =>
-      prev.map((t) => (getSellerName(t) === seller ? { ...t, completed } : t))
-    );
-  };
-
-  const parseNumber = (value: string | number) => {
-    if (typeof value === "number") return value;
-    return Number(value.toString().replace(/[^0-9.]/g, "")) || 0;
-  };
-
-  const isTaskIncomplete = (task: Task) => {
-    const priceNum = parseNumber(task.price);
-    const quantityNum = parseNumber(task.quantity);
-    return (
-      priceNum === 0 ||
-      quantityNum === 0 ||
-      !task.unit ||
-      getSellerName(task) === "Belum ditentukan"
-    );
-  };
-
-  const formatRupiah = (value: number) =>
-    new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      minimumFractionDigits: 0,
-    }).format(value);
-
-  // 🔍 Group + Search filtering
   const groupedTasks = useMemo(() => {
-    // Step 1: group semua dulu
-    const groups = tasksState.reduce((acc: Record<string, Task[]>, task) => {
-      const sellerName = getSellerName(task);
-      if (!acc[sellerName]) acc[sellerName] = [];
-      acc[sellerName].push(task);
-      return acc;
-    }, {});
+    const groups: Record<string, Task[]> = {};
+    tasksState.forEach((task) => {
+      const seller = getSellerName(task);
+      if (!groups[seller]) groups[seller] = [];
+      groups[seller].push(task);
+    });
 
-    // Step 2: jika ada searchTerm, filter dalam tiap grup
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      const filteredGroups: Record<string, Task[]> = {};
+    if (!searchTerm.trim()) return groups;
 
-      Object.entries(groups).forEach(([seller, sellerTasks]) => {
-        const matches = sellerTasks.filter((t) => {
-          const sellerName = getSellerName(t).toLowerCase();
-          const itemName = t.item?.name?.toLowerCase() ?? "";
-          const unit = t.unit?.toLowerCase() ?? "";
-          const price = t.price.toString();
-          return (
-            sellerName.includes(term) ||
-            itemName.includes(term) ||
-            unit.includes(term) ||
-            price.includes(term)
-          );
-        });
-        if (matches.length > 0) filteredGroups[seller] = matches;
+    const term = searchTerm.toLowerCase();
+    const filtered: Record<string, Task[]> = {};
+    Object.entries(groups).forEach(([seller, sellerTasks]) => {
+      const matches = sellerTasks.filter((t) => {
+        const itemName = t.item?.name?.toLowerCase() ?? "";
+        const unit = t.unit?.toLowerCase() ?? "";
+        const price = t.price.toString();
+        return (
+          seller.toLowerCase().includes(term) ||
+          itemName.includes(term) ||
+          unit.includes(term) ||
+          price.includes(term)
+        );
       });
+      if (matches.length) filtered[seller] = matches;
+    });
 
-      return filteredGroups;
-    }
+    return filtered;
+  }, [tasksState, searchTerm, allSellers]);
 
-    return groups;
-  }, [tasksState, searchTerm]);
-
-  // Early return aman
-  if (!tasksState || tasksState.length === 0) return <p>No tasks yet.</p>;
-
-  const grandTotal = Object.values(groupedTasks).reduce((sum, sellerTasks) => {
-    const sellerSubtotal = sellerTasks.reduce(
-      (acc, task) => acc + task.price * task.quantity,
-      0
-    );
-    return sum + sellerSubtotal;
-  }, 0);
+  if (!tasksState.length) return <p>No tasks yet.</p>;
 
   const sortedSellerEntries = Object.entries(groupedTasks).sort(([a], [b]) => {
     if (a === "Belum ditentukan") return 1;
@@ -141,8 +119,8 @@ export default function TaskList({
 
   return (
     <div className="task-list space-y-10">
-      {/* 🔎 Search Bar */}
-      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2">
+      {/* Search bar */}
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur p-2">
         <div className="relative w-full">
           <Search className="absolute left-2 top-2.5 w-5 h-5 text-gray-400" />
           <input
@@ -152,7 +130,7 @@ export default function TaskList({
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full border rounded pl-8 pr-3 py-2 text-sm focus:ring focus:border-blue-500"
           />
-          {searchTerm.length > 0 && (
+          {searchTerm && (
             <button
               onClick={() => setSearchTerm("")}
               className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 transition"
@@ -167,10 +145,6 @@ export default function TaskList({
         <p className="text-muted italic">Tidak ada hasil pencarian.</p>
       ) : (
         sortedSellerEntries.map(([seller, sellerTasks]) => {
-          const sellerSubtotal = sellerTasks.reduce(
-            (acc, task) => acc + task.price * task.quantity,
-            0
-          );
           const allCompleted = sellerTasks.every((t) => t.completed);
 
           return (
@@ -187,173 +161,34 @@ export default function TaskList({
                 </button>
               </div>
 
-              {/* Desktop Table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="min-w-full border bg-card text-main text-sm">
-                  <thead>
-                    <tr>
-                      <th className="px-2 py-2 text-center w-8"></th>
-                      <th className="px-2 py-2 text-center w-20">Action</th>
-                      <th className="px-4 py-2 text-left">Item</th>
-                      <th className="px-4 py-2 text-right">Quantity</th>
-                      <th className="px-4 py-2 text-right">Price</th>
-                      <th className="px-4 py-2 text-right">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sellerTasks.map((task) => (
-                      <tr
-                        key={task.id}
-                        className={`border-t transition ${
-                          task.completed
-                            ? "text-muted line-through"
-                            : "text-main"
-                        } ${isTaskIncomplete(task) ? "bg-todo-danger" : ""}`}
-                      >
-                        <>
-                          <td className="px-2 py-2 text-center">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (
-                                  confirm("Yakin ingin menghapus task ini?")
-                                ) {
-                                  onTaskDeleted?.(task.id);
-                                }
-                              }}
-                              className="text-red-500 hover:text-red-700 text-lg font-bold"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          </td>
-
-                          <td className="px-2 py-2 text-center">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleTask(task.id, !task.completed);
-                              }}
-                              className={`px-2 py-1 rounded text-xs text-white transition ${
-                                task.completed
-                                  ? "bg-red-500 hover:bg-red-600"
-                                  : "bg-green-500 hover:bg-green-600"
-                              }`}
-                            >
-                              {task.completed ? "Undo" : "Complete"}
-                            </button>
-                          </td>
-
-                          <td
-                            className="px-4 py-2 font-medium cursor-pointer"
-                            onClick={() => startEdit(task)}
-                          >
-                            {task.item?.name || "Belum ditentukan"}
-                          </td>
-
-                          <td
-                            className="px-4 py-2 text-right cursor-pointer"
-                            onClick={() => startEdit(task)}
-                          >
-                            {task.quantity} {task.unit || "-"}
-                          </td>
-
-                          <td
-                            className="px-4 py-2 text-right cursor-pointer"
-                            onClick={() => startEdit(task)}
-                          >
-                            {formatRupiah(task.price)}
-                          </td>
-
-                          <td
-                            className="px-4 py-2 text-right cursor-pointer"
-                            onClick={() => startEdit(task)}
-                          >
-                            {formatRupiah(task.price * task.quantity)}
-                          </td>
-                        </>
-                      </tr>
-                    ))}
-                    <tr className="font-semibold">
-                      <td colSpan={5} className="px-4 py-2 text-right border-t">
-                        Subtotal {seller}
-                      </td>
-                      <td className="px-4 py-2 text-right border-t">
-                        {formatRupiah(sellerSubtotal)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Card */}
-              <div className="md:hidden space-y-3">
-                {sellerTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    onClick={() => startEdit(task)}
-                    className={`p-3 rounded border transition cursor-pointer relative ${
-                      task.completed ? "text-muted line-through" : "text-main"
-                    } ${isTaskIncomplete(task) ? "bg-todo-danger" : ""}`}
+              {sellerTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between mb-1"
+                >
+                  <span>{task.item?.name}</span>
+                  <button
+                    onClick={() => toggleTask(task.id, !task.completed)}
+                    className={`px-2 py-1 rounded text-xs text-white transition ${
+                      task.completed
+                        ? "bg-red-500 hover:bg-red-600"
+                        : "bg-green-500 hover:bg-green-600"
+                    }`}
                   >
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">
-                        {task.item?.name || "Belum ditentukan"}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleTask(task.id, !task.completed);
-                          }}
-                          className={`px-2 py-1 rounded text-xs text-white ${
-                            task.completed ? "bg-red-500" : "bg-green-500"
-                          }`}
-                        >
-                          {task.completed ? "Undo" : "Complete"}
-                        </button>
-
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm("Yakin ingin menghapus task ini?")) {
-                              onTaskDeleted?.(task.id);
-                            }
-                          }}
-                          className="p-1 rounded hover:bg-red-50 text-red-600"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted mt-1">
-                      {task.quantity} {task.unit || "-"} •{" "}
-                      {formatRupiah(task.price)} •{" "}
-                      {formatRupiah(task.price * task.quantity)}
-                    </div>
-                  </div>
-                ))}
-
-                <div className="text-right font-semibold mt-2 text-main">
-                  Subtotal {seller}: {formatRupiah(sellerSubtotal)}
+                    {task.completed ? "Undo" : "Complete"}
+                  </button>
                 </div>
-              </div>
+              ))}
             </div>
           );
         })
       )}
 
-      <div className="text-right font-bold text-lg text-main border-t pt-4 mb-40">
-        Total Belanja: {formatRupiah(grandTotal)}
-      </div>
-
       {editingTask && (
         <EditTaskForm
-          task={editingTask}
+          task={tasksState.find((t) => t.id === editingTask.id) ?? editingTask}
           items={items}
           sellers={allSellers}
-          getLatestSellerForItem={getLatestSellerForItem}
           onClose={cancelEdit}
           onTaskUpdated={saveEdit}
         />

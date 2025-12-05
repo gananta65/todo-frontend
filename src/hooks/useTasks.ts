@@ -1,16 +1,21 @@
-"use client";
-
+// hooks/useTasks.ts
 import { useState, useEffect, useCallback } from "react";
 import { Task, UpdateTaskPayload } from "@/lib/interfaces";
-import { fetchTasks, createTask, updateTask, deleteTask } from "@/lib/api/task";
+import {
+  fetchTasks,
+  createTask,
+  updateTask,
+  deleteTask,
+  bulkUpdateTasks,
+} from "@/lib/api/task";
 
 interface AddTaskData {
   name: string;
   quantity?: number;
   current_unit?: string;
   current_price?: number;
-  sellers?: string[]; // frontend display
-  snapshot_sellers?: number[]; // backend
+  sellers?: string[];
+  snapshot_sellers?: number[];
 }
 
 export function useTasks(todoId: number, token: string | null) {
@@ -20,20 +25,14 @@ export function useTasks(todoId: number, token: string | null) {
 
   const loadTasks = useCallback(async () => {
     if (!token) return;
-
     setLoading(true);
     setError(null);
     try {
       const data = await fetchTasks(todoId, token);
-
       setTasks(Array.isArray(data) ? data : []);
     } catch (err: unknown) {
-      console.error("❌ Gagal load tasks:", err);
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("Gagal load tasks");
-      }
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Gagal load tasks");
     } finally {
       setLoading(false);
     }
@@ -46,36 +45,21 @@ export function useTasks(todoId: number, token: string | null) {
   const addTask = useCallback(
     async (taskData: AddTaskData) => {
       if (!token) return;
-
       try {
         const payload = {
           name: taskData.name,
           quantity: taskData.quantity,
           unit: taskData.current_unit,
           price: taskData.current_price,
-          sellers: taskData.sellers ?? [], // string[]
+          sellers: taskData.sellers ?? [],
         };
-
         const newTask = await createTask(todoId, payload, token);
-
-        // Update state
-        setTasks((prev) => {
-          const exists = prev.find((t) => t.id === newTask.id);
-          if (exists) {
-            console.warn(
-              "Task sudah ada di state, tidak menambahkan duplikat:",
-              newTask
-            );
-            return prev;
-          }
-          return [newTask, ...prev];
-        });
+        setTasks((prev) => [
+          newTask,
+          ...prev.filter((t) => t.id !== newTask.id),
+        ]);
       } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Gagal buat task");
-        }
+        setError(err instanceof Error ? err.message : "Gagal buat task");
       }
     },
     [todoId, token]
@@ -87,28 +71,13 @@ export function useTasks(todoId: number, token: string | null) {
       updates: Partial<UpdateTaskPayload> & { completed?: boolean }
     ) => {
       if (!token) return;
-
       try {
-        const payload = {
-          name: updates.name, // kalau mau ganti item name
-          quantity: updates.quantity,
-          unit: updates.unit,
-          price: updates.price,
-          sellers: updates.sellers ?? [], // string[]
-          completed: updates.completed,
-        };
-
-        const updatedTask = await updateTask(todoId, taskId, payload, token);
-
+        const updatedTask = await updateTask(todoId, taskId, updates, token);
         setTasks((prev) =>
           prev.map((t) => (t.id === taskId ? updatedTask : t))
         );
       } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Gagal update task");
-        }
+        setError(err instanceof Error ? err.message : "Gagal update task");
       }
     },
     [todoId, token]
@@ -121,41 +90,57 @@ export function useTasks(todoId: number, token: string | null) {
         await deleteTask(todoId, taskId, token);
         setTasks((prev) => prev.filter((t) => t.id !== taskId));
       } catch (err: unknown) {
-        if (err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError("Gagal hapus task");
-        }
+        setError(err instanceof Error ? err.message : "Gagal hapus task");
       }
     },
     [todoId, token]
   );
 
-  // Satu task
+  // Single task
   const completeTask = useCallback(
     (taskId: number) => editTask(taskId, { completed: true }),
     [editTask]
   );
-
   const undoTask = useCallback(
     (taskId: number) => editTask(taskId, { completed: false }),
     [editTask]
   );
 
-  // Semua task
+  // All tasks (loop)
   const completeAllTasks = useCallback(async () => {
-    for (const t of tasks.filter((t) => !t.completed)) {
-      await editTask(t.id, { completed: true });
-      await new Promise((r) => setTimeout(r, 200)); // cooldown
-    }
-  }, [tasks, editTask]);
+    const incomplete = tasks.filter((t) => !t.completed);
+    if (incomplete.length)
+      await bulkUpdateTasks(
+        todoId,
+        incomplete.map((t) => t.id),
+        true,
+        token!
+      );
+    await loadTasks();
+  }, [tasks, todoId, token, loadTasks]);
 
   const undoAllTasks = useCallback(async () => {
-    for (const t of tasks.filter((t) => t.completed)) {
-      await editTask(t.id, { completed: false });
-      await new Promise((r) => setTimeout(r, 200)); // cooldown
-    }
-  }, [tasks, editTask]);
+    const completedTasks = tasks.filter((t) => t.completed);
+    if (completedTasks.length)
+      await bulkUpdateTasks(
+        todoId,
+        completedTasks.map((t) => t.id),
+        false,
+        token!
+      );
+    await loadTasks();
+  }, [tasks, todoId, token, loadTasks]);
+
+  const bulkUpdate = useCallback(
+    async (taskIds: number[], completed: boolean) => {
+      if (!token || taskIds.length === 0) return;
+      await bulkUpdateTasks(todoId, taskIds, completed, token);
+      setTasks((prev) =>
+        prev.map((t) => (taskIds.includes(t.id) ? { ...t, completed } : t))
+      );
+    },
+    [todoId, token]
+  );
 
   return {
     tasks,
@@ -169,5 +154,6 @@ export function useTasks(todoId: number, token: string | null) {
     undoTask,
     completeAllTasks,
     undoAllTasks,
+    bulkUpdate,
   };
 }
