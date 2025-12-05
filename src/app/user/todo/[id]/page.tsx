@@ -24,17 +24,8 @@ export default function TodoDetailPage() {
     created_at?: string;
   } | null>(null);
 
-  const {
-    tasks,
-    loading,
-    addTask,
-    editTask,
-    removeTask,
-    completeTask,
-    undoTask,
-    bulkUpdate,
-    loadTasks,
-  } = useTasks(Number(id), token);
+  const { tasks, loading, addTask, editTask, removeTask, bulkUpdate } =
+    useTasks(Number(id), token);
 
   const {
     sellers: allSellers,
@@ -99,7 +90,7 @@ export default function TodoDetailPage() {
     const ids = sellerTasks.map((t) => t.id);
     if (ids.length === 0) return;
 
-    await bulkUpdateTasks(ids, completed);
+    await bulkUpdate(ids, completed);
   };
 
   return (

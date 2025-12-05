@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Task, Seller, Item } from "@/lib/interfaces";
 import EditTaskForm from "./EditTaskForm";
 import { Search } from "lucide-react";
@@ -23,7 +23,6 @@ export default function TaskList({
   allSellers,
   items,
   onTaskUpdated,
-  onTaskDeleted,
   onBulkComplete,
 }: TaskListProps) {
   const [tasksState, setTasksState] = useState<Task[]>(tasks);
@@ -35,7 +34,10 @@ export default function TaskList({
     setTasksState(tasks);
   }, [tasks]);
 
-  const getSellerName = (task: Task) => helperGetSellerName(task, allSellers);
+  const getSellerName = useCallback(
+    (task: Task) => helperGetSellerName(task, allSellers),
+    [allSellers]
+  );
 
   const toggleTask = async (taskId: number, completed: boolean) => {
     // Optimistic update
@@ -61,8 +63,6 @@ export default function TaskList({
 
     if (onBulkComplete) await onBulkComplete(seller, completed);
   };
-
-  const startEdit = (task: Task) => setEditingTask(task);
 
   const saveEdit = async (taskId: number, updates: Partial<Task>) => {
     setTasksState((prev) =>
@@ -107,7 +107,7 @@ export default function TaskList({
     });
 
     return filtered;
-  }, [tasksState, searchTerm, allSellers]);
+  }, [tasksState, searchTerm, getSellerName]);
 
   if (!tasksState.length) return <p>No tasks yet.</p>;
 
