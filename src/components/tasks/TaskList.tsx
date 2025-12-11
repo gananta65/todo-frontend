@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Task, Seller, Item } from "@/lib/interfaces";
 import EditTaskForm from "./EditTaskForm";
 import { Trash2, Search } from "lucide-react";
 import { getSellerName as helperGetSellerName } from "@/lib/helper/task";
-import { useCallback } from "react";
 
 interface TaskListProps {
   tasks: Task[];
@@ -17,7 +16,11 @@ interface TaskListProps {
     updates: Partial<Task>
   ) => Promise<void> | void;
   onTaskDeleted?: (taskId: number) => Promise<void> | void;
-  onBulkComplete?: (seller: string, completed: boolean) => Promise<void> | void;
+  onBulkComplete?: (
+    seller: string,
+    completed: boolean,
+    taskIds?: number[]
+  ) => Promise<void> | void;
 }
 
 export default function TaskList({
@@ -33,56 +36,55 @@ export default function TaskList({
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Sync tasksState saat props.tasks berubah
+  // ✅ Satu state untuk menandai loading semua tombol
+  const [processingTasks, setProcessingTasks] = useState<Set<number>>(
+    new Set()
+  );
+  const [processingSellers, setProcessingSellers] = useState<Set<string>>(
+    new Set()
+  );
+
   useEffect(() => {
     setTasksState(tasks);
   }, [tasks]);
 
-  // NOTE: keep getSellerName as a simple helper function (keeps UI stable).
   const getSellerName = useCallback(
     (task: Task) => helperGetSellerName(task, allSellers),
     [allSellers]
   );
 
-  // Toggle single task (optimistic + notify parent via onTaskUpdated)
-  // Ganti toggleTask
   const toggleTask = async (taskId: number, completed: boolean) => {
-    // Optimistic update UI
+    if (processingTasks.has(taskId)) return;
+
+    setProcessingTasks((prev) => new Set(prev).add(taskId));
     setTasksState((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, completed } : t))
     );
 
-    if (editingTask?.id === taskId) {
-      setEditingTask((prev) => (prev ? { ...prev, completed } : null));
-    }
+    const task = tasksState.find((t) => t.id === taskId);
+    const seller = task ? getSellerName(task) : null;
+    if (!seller) return;
 
-    // Gunakan onBulkComplete untuk 1 task saja
-    if (onBulkComplete) {
-      const task = tasksState.find((t) => t.id === taskId);
-      const seller = task ? getSellerName(task) : null;
-      try {
-        if (seller) {
-          await onBulkComplete(seller, completed);
-        }
-      } catch (err) {
-        // Revert jika gagal
-        setTasksState((prev) =>
-          prev.map((t) =>
-            t.id === taskId ? { ...t, completed: !completed } : t
-          )
-        );
-        if (editingTask?.id === taskId) {
-          setEditingTask((prev) =>
-            prev ? { ...prev, completed: !completed } : null
-          );
-        }
-        throw err;
-      }
+    try {
+      await onBulkComplete?.(seller, completed, [taskId]);
+    } catch (err) {
+      setTasksState((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, completed: !completed } : t))
+      );
+    } finally {
+      setProcessingTasks((prev) => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
     }
   };
 
-  // Toggle all tasks for a seller (optimistic + notify parent via onBulkComplete)
+  // Toggle all tasks per seller
   const toggleSellerTasks = async (seller: string, completed: boolean) => {
+    if (processingSellers.has(seller)) return;
+
+    setProcessingSellers((prev) => new Set(prev).add(seller));
     setTasksState((prev) =>
       prev.map((t) => (getSellerName(t) === seller ? { ...t, completed } : t))
     );
@@ -91,49 +93,47 @@ export default function TaskList({
       setEditingTask((prev) => (prev ? { ...prev, completed } : null));
     }
 
-    if (onBulkComplete) {
-      try {
-        await onBulkComplete(seller, completed);
-      } catch (err) {
-        // revert optimistic update on failure
-        setTasksState((prev) =>
-          prev.map((t) =>
-            getSellerName(t) === seller ? { ...t, completed: !completed } : t
-          )
+    try {
+      await onBulkComplete?.(seller, completed);
+    } catch (err) {
+      setTasksState((prev) =>
+        prev.map((t) =>
+          getSellerName(t) === seller ? { ...t, completed: !completed } : t
+        )
+      );
+      if (editingTask && getSellerName(editingTask) === seller) {
+        setEditingTask((prev) =>
+          prev ? { ...prev, completed: !completed } : null
         );
-        if (editingTask && getSellerName(editingTask) === seller) {
-          setEditingTask((prev) =>
-            prev ? { ...prev, completed: !completed } : null
-          );
-        }
-        throw err;
       }
+    } finally {
+      setProcessingSellers((prev) => {
+        const next = new Set(prev);
+        next.delete(seller);
+        return next;
+      });
     }
   };
 
-  const startEdit = (task: Task) => setEditingTask(task);
+  const startEdit = (task: Task) => {
+    const freshTask = tasksState.find((t) => t.id === task.id);
+    setEditingTask(freshTask ?? task);
+  };
 
   const saveEdit = async (taskId: number, updates: Partial<Task>) => {
     setTasksState((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t))
     );
-
-    if (editingTask?.id === taskId) {
-      setEditingTask((prev) => (prev ? { ...prev, ...updates } : null));
-    }
-
-    if (onTaskUpdated) {
-      await onTaskUpdated(taskId, updates);
-    }
+    if (onTaskUpdated) await onTaskUpdated(taskId, updates);
     setEditingTask(null);
   };
 
   const cancelEdit = () => setEditingTask(null);
 
-  const parseNumber = (value: string | number) => {
-    if (typeof value === "number") return value;
-    return Number(value.toString().replace(/[^0-9.]/g, "")) || 0;
-  };
+  const parseNumber = (value: string | number) =>
+    typeof value === "number"
+      ? value
+      : Number(value.toString().replace(/[^0-9.]/g, "")) || 0;
 
   const isTaskIncomplete = (task: Task) => {
     const priceNum = parseNumber(task.price);
@@ -153,9 +153,7 @@ export default function TaskList({
       minimumFractionDigits: 0,
     }).format(value);
 
-  // Grouping + search. Keep dependencies minimal to avoid unnecessary re-renders
   const groupedTasks = useMemo(() => {
-    // Step 1: group semua dulu
     const groups = tasksState.reduce((acc: Record<string, Task[]>, task) => {
       const sellerName = getSellerName(task);
       if (!acc[sellerName]) acc[sellerName] = [];
@@ -163,11 +161,9 @@ export default function TaskList({
       return acc;
     }, {});
 
-    // Step 2: jika ada searchTerm, filter dalam tiap grup
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
       const filteredGroups: Record<string, Task[]> = {};
-
       Object.entries(groups).forEach(([seller, sellerTasks]) => {
         const matches = sellerTasks.filter((t) => {
           const sellerName = getSellerName(t).toLowerCase();
@@ -183,23 +179,20 @@ export default function TaskList({
         });
         if (matches.length > 0) filteredGroups[seller] = matches;
       });
-
       return filteredGroups;
     }
 
     return groups;
-  }, [tasksState, searchTerm, getSellerName]); // keep same deps as original UI-friendly version
+  }, [tasksState, searchTerm, getSellerName]);
 
-  // Early return aman
   if (!tasksState || tasksState.length === 0) return <p>No tasks yet.</p>;
 
-  const grandTotal = Object.values(groupedTasks).reduce((sum, sellerTasks) => {
-    const sellerSubtotal = sellerTasks.reduce(
-      (acc, task) => acc + task.price * task.quantity,
-      0
-    );
-    return sum + sellerSubtotal;
-  }, 0);
+  const grandTotal = Object.values(groupedTasks).reduce(
+    (sum, sellerTasks) =>
+      sum +
+      sellerTasks.reduce((acc, task) => acc + task.price * task.quantity, 0),
+    0
+  );
 
   const sortedSellerEntries = Object.entries(groupedTasks).sort(([a], [b]) => {
     if (a === "Belum ditentukan") return 1;
@@ -209,7 +202,7 @@ export default function TaskList({
 
   return (
     <div className="task-list space-y-10">
-      {/* 🔎 Search Bar */}
+      {/* Search Bar */}
       <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-2">
         <div className="relative w-full">
           <Search className="absolute left-2 top-2.5 w-5 h-5 text-gray-400" />
@@ -249,9 +242,18 @@ export default function TaskList({
                 </h3>
                 <button
                   onClick={() => toggleSellerTasks(seller, !allCompleted)}
-                  className="text-sm px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600"
+                  disabled={processingSellers.has(seller)}
+                  className={`text-sm px-3 py-1 rounded text-white transition ${
+                    processingSellers.has(seller)
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-500 hover:bg-blue-600"
+                  }`}
                 >
-                  {allCompleted ? "Uncomplete All" : "Complete All"}
+                  {processingSellers.has(seller)
+                    ? "Processing..."
+                    : allCompleted
+                    ? "Uncomplete All"
+                    : "Complete All"}
                 </button>
               </div>
 
@@ -283,16 +285,14 @@ export default function TaskList({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (confirm("Yakin ingin menghapus task ini?")) {
+                              if (confirm("Yakin ingin menghapus task ini?"))
                                 onTaskDeleted?.(task.id);
-                              }
                             }}
                             className="text-red-500 hover:text-red-700 text-lg font-bold"
                           >
                             <Trash2 className="w-5 h-5" />
                           </button>
                         </td>
-
                         <td className="px-2 py-2 text-center">
                           <button
                             type="button"
@@ -300,37 +300,40 @@ export default function TaskList({
                               e.stopPropagation();
                               toggleTask(task.id, !task.completed);
                             }}
+                            disabled={processingTasks.has(task.id)}
                             className={`px-2 py-1 rounded text-xs text-white transition ${
-                              task.completed
+                              processingTasks.has(task.id)
+                                ? "bg-gray-400 cursor-not-allowed"
+                                : task.completed
                                 ? "bg-red-500 hover:bg-red-600"
                                 : "bg-green-500 hover:bg-green-600"
                             }`}
                           >
-                            {task.completed ? "Undo" : "Complete"}
+                            {processingTasks.has(task.id)
+                              ? "..."
+                              : task.completed
+                              ? "Undo"
+                              : "Complete"}
                           </button>
                         </td>
-
                         <td
                           className="px-4 py-2 font-medium cursor-pointer"
                           onClick={() => startEdit(task)}
                         >
                           {task.item?.name || "Belum ditentukan"}
                         </td>
-
                         <td
                           className="px-4 py-2 text-right cursor-pointer"
                           onClick={() => startEdit(task)}
                         >
                           {task.quantity} {task.unit || "-"}
                         </td>
-
                         <td
                           className="px-4 py-2 text-right cursor-pointer"
                           onClick={() => startEdit(task)}
                         >
                           {formatRupiah(task.price)}
                         </td>
-
                         <td
                           className="px-4 py-2 text-right cursor-pointer"
                           onClick={() => startEdit(task)}
@@ -371,19 +374,26 @@ export default function TaskList({
                             e.stopPropagation();
                             toggleTask(task.id, !task.completed);
                           }}
+                          disabled={processingTasks.has(task.id)}
                           className={`px-2 py-1 rounded text-xs text-white ${
-                            task.completed ? "bg-red-500" : "bg-green-500"
+                            processingTasks.has(task.id)
+                              ? "bg-gray-400 cursor-not-allowed"
+                              : task.completed
+                              ? "bg-red-500"
+                              : "bg-green-500"
                           }`}
                         >
-                          {task.completed ? "Undo" : "Complete"}
+                          {processingTasks.has(task.id)
+                            ? "..."
+                            : task.completed
+                            ? "Undo"
+                            : "Complete"}
                         </button>
-
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (confirm("Yakin ingin menghapus task ini?")) {
+                            if (confirm("Yakin ingin menghapus task ini?"))
                               onTaskDeleted?.(task.id);
-                            }
                           }}
                           className="p-1 rounded hover:bg-red-50 text-red-600"
                         >
@@ -398,7 +408,6 @@ export default function TaskList({
                     </div>
                   </div>
                 ))}
-
                 <div className="text-right font-semibold mt-2 text-main">
                   Subtotal {seller}: {formatRupiah(sellerSubtotal)}
                 </div>
@@ -417,7 +426,6 @@ export default function TaskList({
           task={editingTask}
           items={items}
           sellers={allSellers}
-          getLatestSellerForItem={getLatestSellerForItem}
           onClose={cancelEdit}
           onTaskUpdated={saveEdit}
         />

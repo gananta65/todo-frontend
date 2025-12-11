@@ -79,15 +79,26 @@ export default function TodoDetailPage() {
     });
   };
 
-  const handleBulkCompletePerSeller = async (
-    sellerName: string,
-    completed: boolean
+  const handleComplete = async (
+    sellerName?: string,
+    completed: boolean = true,
+    taskIds?: number[]
   ) => {
     if (!allSellers) return;
-    const sellerTasks = tasks.filter(
-      (t) => getSellerName(t, allSellers) === sellerName
-    );
-    const ids = sellerTasks.map((t) => t.id);
+
+    let ids: number[] = [];
+
+    if (taskIds && taskIds.length > 0) {
+      // kalau ada taskIds, pakai itu langsung
+      ids = taskIds;
+    } else if (sellerName) {
+      // kalau nggak ada taskIds, pakai sellerName untuk ambil semua task per seller
+      const sellerTasks = tasks.filter(
+        (t) => getSellerName(t, allSellers) === sellerName
+      );
+      ids = sellerTasks.map((t) => t.id);
+    }
+
     if (ids.length === 0) return;
 
     await bulkUpdate(ids, completed);
@@ -131,7 +142,7 @@ export default function TodoDetailPage() {
         allSellers={allSellers}
         onTaskUpdated={editTask}
         onTaskDeleted={removeTask}
-        onBulkComplete={handleBulkCompletePerSeller} // per seller
+        onBulkComplete={handleComplete}
       />
 
       <AddTaskForm
