@@ -27,7 +27,6 @@ export default function TaskList({
   tasks,
   allSellers,
   items,
-  getLatestSellerForItem,
   onTaskUpdated,
   onTaskDeleted,
   onBulkComplete,
@@ -67,7 +66,7 @@ export default function TaskList({
 
     try {
       await onBulkComplete?.(seller, completed, [taskId]);
-    } catch (err) {
+    } catch {
       setTasksState((prev) =>
         prev.map((t) => (t.id === taskId ? { ...t, completed: !completed } : t))
       );
@@ -95,7 +94,7 @@ export default function TaskList({
 
     try {
       await onBulkComplete?.(seller, completed);
-    } catch (err) {
+    } catch {
       setTasksState((prev) =>
         prev.map((t) =>
           getSellerName(t) === seller ? { ...t, completed: !completed } : t

@@ -1,7 +1,7 @@
 // Cleaned version without comments and with debug logs
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Task, Item, Seller } from "@/lib/interfaces";
 import { Combobox } from "@headlessui/react";
 
@@ -69,32 +69,36 @@ export default function EditTaskForm({
     setPriceDisplay(formatPrice(finalPrice));
   };
 
+  const matchedItem = useMemo(
+    () => items.find((i) => i.id === task.item?.id) ?? null,
+    [items, task]
+  );
+
+  const matchedSeller = useMemo(() => {
+    const lastSellerId =
+      task.snapshot_sellers?.[task.snapshot_sellers.length - 1];
+
+    if (lastSellerId) return sellers.find((s) => s.id === lastSellerId) ?? null;
+    if (task.sellers?.length)
+      return sellers.find((s) => s.name === task.sellers[0]) ?? null;
+    return null;
+  }, [sellers, task]);
+
   useEffect(() => {
-    console.log("[INIT RESET] Task received: ", task);
     setName(task.item?.name ?? "");
     setQuantity(task.quantity ?? undefined);
     setUnit(task.unit ?? "");
     setPrice(task.price ?? undefined);
     setPriceDisplay(task.price ? formatPrice(task.price) : "");
 
-    const matchedItem = items.find((i) => i.id === task.item?.id) ?? null;
     setSelectedItem(matchedItem);
-
-    const lastSellerId =
-      task.snapshot_sellers?.[task.snapshot_sellers.length - 1];
-
-    const matchedSeller = lastSellerId
-      ? sellers.find((s) => s.id === lastSellerId) ?? null
-      : sellers.find((s) => s.name === task.sellers?.[0]) ?? null;
-
     setSelectedSeller(matchedSeller);
+
     setSellerName(matchedSeller?.name ?? task.sellers?.[0] ?? "");
-  }, [task]);
+  }, [task, matchedItem, matchedSeller]);
 
   useEffect(() => {
     if (!selectedItem) return;
-
-    console.log("[SELECTED ITEM CHANGE] selectedItem:", selectedItem);
 
     setName(selectedItem.name);
 
@@ -105,10 +109,9 @@ export default function EditTaskForm({
       setPrice(isNaN(numericPrice) ? 0 : numericPrice);
       setPriceDisplay(formatPrice(numericPrice));
     }
-  }, [selectedItem]);
+  }, [selectedItem, task.price]);
 
   const resetForm = () => {
-    console.log("[RESET] Closing modal");
     onClose();
   };
 
@@ -143,11 +146,8 @@ export default function EditTaskForm({
         completed: task.completed,
       };
 
-      console.log("[SUBMIT] payload:", payload);
-
       await onTaskUpdated(task.id, payload);
 
-      console.log("[SUBMIT] Success, closing modal");
       onClose();
     } catch (err) {
       console.error("[SUBMIT] Error:", err);
